@@ -31,32 +31,40 @@ func getAWS_Secrets() map[string]string {
           return GetEnvMap()
         }
    	secrets := fetchAWS_Secrets(svc,filtered)
-	return asMap(secrets)
+	return asMap(filtered, secrets)
 }
 
-func asMap(parameters *ssm.GetParametersOutput) map[string]string {
+func asMap(names []string, values []string) map[string]string {
+		secrets := GetEnvMap() 
+	    prefix := string_template_eval(awsSecretsPrefixFlag)
 
-	secrets := GetEnvMap() 
-        prefix := string_template_eval(awsSecretsPrefixFlag)
-	for i := 0; i < len(parameters.Parameters); i++ {
-		name := *parameters.Parameters[i].Name
-                name = strings.Replace(name, prefix, "", 1)
-		secrets[name] = *parameters.Parameters[i].Value
-	}
-	return secrets
+		for i := 0; i < len(names); i++ {
+			name := names[i]
+	                name = strings.Replace(name, prefix, "", 1)
+			secrets[name] = values[i]
+		}
+		return secrets
 }
 
-func fetchAWS_Secrets(svc *ssm.SSM, parameterNames []string) *ssm.GetParametersOutput {
-	params := &ssm.GetParametersInput{
-		Names:          aws.StringSlice(parameterNames),
-		WithDecryption: aws.Bool(true),
-	}
-	resp, err := svc.GetParameters(params)
+func fetchAWS_Secrets(svc *ssm.SSM, parameterNames []string) []string {
+	size := len(parameterNames)
+	values := make([]string, size)
+	for i := 0; i < size; i++ {
+		params := &ssm.GetParameterInput{
+			Name:           aws.String(parameterNames[i]),
+			WithDecryption: aws.Bool(true),
+		}
 
-	if err != nil {
-		log.Fatalf("cannot fetch AWS System Manager Parameters %s", err.Error())
+		resp, err := svc.GetParameter(params)
+
+		if err != nil {
+			log.Fatalf("cannot fetch AWS System Manager Parameters %s", err.Error())
+		}
+
+		values[i] = *resp.Parameter.Value
 	}
-	return resp
+
+	return values
 }
 
 
